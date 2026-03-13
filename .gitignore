@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+*.egg-info/
+
+# Entorno
+.env
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs/*.log
+*.log
+
+# Base de datos
+data/*.db
+data/*.db-journal
+
+# Archivos temporales
+*.tmp
+*.temp
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Audios grandes (opcional)
+data/audios_prueba/*.wav
+data/audios_prueba/*.mp3
+
+# Binarios locales
+bin/
+
+# Reportes de cobertura
+htmlcov/
+.tox/
+

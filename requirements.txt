@@ -1,0 +1,23 @@
+# ==========================================
+# ACTACLARA - DEPENDENCIAS
+# Versión: 1.0
+# Python: 3.10+
+# Fecha: 12 marzo 2026
+# ==========================================
+
+# Motor de Transcripción
+faster-whisper
+torch
+torchaudio
+
+# Procesamiento de Audio
+pydub
+
+# Exportación de Documentos
+python-docx
+
+# Utilidades
+python-dotenv
+
+# Testing
+pytest

@@ -1,0 +1,53 @@
+# CHAT SESSION HISTORY - ACTACLARA ORCHESTRATOR
+
+## Project Info
+- **Project Name:** ActaClara
+- **Objective:** Meeting transcription system with Chilean idiom normalization.
+- **Start Date:** 2026-03-12
+- **Deadline:** 2026-03-30 (18 days total)
+- **Status:** Phase 1 - Environment Setup
+
+## Environment Details
+- **IDE:** Google Antigravity
+- **Agent Roles Mapping:**
+  1. **Architect:** Gemini 3.1 pro (High)
+  2. **Backend:** Gemini 3 Flash
+  3. **UI Specialist:** Claude Sonnet 4.6 (Thinkings)
+  4. **Debugger:** GPT-OSS 120B (medium)
+  5. **Orchestrator:** Claude Opus 4.6 (Thinkings)
+
+## Current Progress (2026-03-13)
+- [x] Methodology Alignment: Adopting "Incremental & Prototype" approach from PDF thesis.
+- [x] Versioning established in `docs/versions/`:
+    - **v0.1 (P0):** Data Persistence.
+    - **v0.2 (P1):** STT Engine.
+    - **v0.3 (P2):** NLP Normalization.
+    - **v0.4 (P3):** Integrated GUI.
+- [x] Audits created for v0.2 and v0.4 to track errors and limitations.
+- [x] All prototypes (P0-P2) verified with Master Integration Test.
+
+## Next Actions
+1. **P4 Versioning:** Start v0.5 (P4) for DOCX Exporting.
+2. **v0.4 Refinement:** Fix limitations in Historial and Config views.
+
+## Blockers & Solutions
+- **FFmpeg Missing:** Resolved by downloading release binaries to local `bin/` directory.
+- **Python Version Compatibility:** Resolved by relaxing `requirements.txt` constraints.
+- **Documentation Priority:** Mandatory error logging implemented as per project roles.
+
+## Next Actions (v0.5 Cycle)
+1. **P4 Export Engine:** Implement `src/services/exporter.py` for DOCX using `python-docx`.
+2. **UI Data Binding:** Connect Sidebar to real SQLite data.
+3. **Audit Completion:** Create audit files for v0.1 and v0.3 in `docs/versions/`.
+
+## Context Restoration (Read this when resuming)
+- **Current Version:** v0.4 (P3 UI Integration).
+- **Core Strategy:** MVC Pattern + Local AI (Whisper) + Local FFmpeg.
+- **Ready to Go:** The "Brain" is 100% functional. UI is integrated with threading.
+- **Foundation:** See `GEMINI.md` for project mandates and agent mapping.
+
+## Orchestrator Strategy
+- Act as the central point of control.
+- Coordinate between specialized agents (Architect, Backend, UI, Debugger).
+- Maintain documentation integrity and versioning.
+- Monitor timeline and project KPIs.
