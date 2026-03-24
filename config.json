@@ -1,0 +1,6 @@
+{
+    "whisper_model": "small",
+    "appearance": "light",
+    "language": "es",
+    "export_path": "data/actas_exportadas"
+}

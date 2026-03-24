@@ -5,7 +5,7 @@
     "pais": "CL",
     "fecha_creacion": "2026-03-12",
     "autor": "Ian Leonardo Castro Contreras",
-    "total_expresiones": 50,
+    "total_expresiones": 54,
     "fuentes": [
       "Diccionario de Chilenismos - Academia Chilena de la Lengua",
       "Observación directa en contextos empresariales chilenos"
@@ -62,6 +62,9 @@
     {"id": "mod_048", "expresion_original": "pencazo", "expresion_normalizada": "muy malo", "categoria": "evaluacion", "ejemplos": ["Ese código es un pencazo", "El resultado fue pencazo"]},
     {"id": "mod_049", "expresion_original": "quedó como las huevas", "expresion_normalizada": "resultado deficiente", "categoria": "evaluacion", "ejemplos": ["La implementación quedó como las huevas", "El deploy quedó como las huevas"]},
     {"id": "mod_050", "expresion_original": "pa la cagá", "expresion_normalizada": "muy mal", "categoria": "evaluacion", "ejemplos": ["El servidor está pa la cagá", "La situación está pa la cagá"]},
-    {"id": "mod_051", "expresion_original": "condoro", "expresion_normalizada": "error", "categoria": "accion", "ejemplos": ["Fue un condoro", "Me mandé un condoro"]}
+    {"id": "mod_051", "expresion_original": "condoro", "expresion_normalizada": "error", "categoria": "accion", "ejemplos": ["Fue un condoro", "Me mandé un condoro"]},
+    {"id": "mod_052", "expresion_original": "me tinka", "expresion_normalizada": "me parece adecuado", "categoria": "opinion", "ejemplos": ["Me tinca que deberíamos priorizar esa tarea", "No me tinca mucho ese enfoque"]},
+    {"id": "mod_053", "expresion_original": "wea", "expresion_normalizada": "cosa (universal, neutra o peyorativa)", "categoria": "sustantivo comodín", "significados_principales": ["Cosa o objeto indefinido (el más común).", "Algo malo, molesto o de baja calidad.", "Comida con mal sabor.", "Situación complicada o problema.", "Insulto genérico (equivalente a 'mierda' o 'porquería').", "Celebración o énfasis positivo (ej. '¡la wea fácil!').", "Persona tonta (en combinación: 'wea de weón').", "Cualquier descriptor adaptable (auto, fiesta, etc.)"], "ejemplos": ["Pásame la wea que está ahí (pásame esa cosa).", "Puta la wea, qué fome (qué mierda, qué aburrido).", "Esta wea tiene mal sabor (esta comida está mala).", "Me carga esta wea (me molesta esta situación)."], "notas": "Universal como 'cosa'; vulgar en contextos negativos. Usos infinitos por entonación [web:26]."},
+    {"id": "mod_054", "expresion_original": "weon", "expresion_normalizada": "persona (universal, neutra o peyorativa)", "categoria": "sustantivo comodín", "significados_principales": ["Persona (el más común).", "Amigo o conocido (en tono cariñoso).", "Tonto o estúpido (en tono despectivo).", "Persona desconocida (en tono neutro).", "Insulto genérico (equivalente a 'imbécil' o 'idiota').", "Persona que comete un error (en combinación: 'weón de mierda').", "Persona que hace algo bien (en combinación: '¡qué weón!').", "Cualquier descriptor adaptable (colega, jefe, etc.)"], "ejemplos": ["¿Qué onda, weón? (¿Qué pasa, amigo?).", "Ese weón no sabe lo que hace (ese tipo es estúpido).", "Pásame esa wea, weón (pásame esa cosa, amigo).", "¡Qué weón más grande! (¡qué gran persona!)."], "notas": "Universal como 'persona'; vulgar en contextos negativos. Usos infinitos por entonación [web:26]."}
   ]
 }

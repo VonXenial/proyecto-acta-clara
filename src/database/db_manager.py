@@ -167,3 +167,75 @@ class DBManager:
         except Exception as e:
             logger.error(f"Error al obtener acta por ID {acta_id}: {e}")
             raise
+
+    def get_all_actas(self) -> List[Acta]:
+        """
+        Recupera todas las actas almacenadas, cada una con sus modismos asociados.
+
+        Returns:
+            Lista de objetos ``Acta`` ordenados por fecha de creación descendente.
+            Si no hay registros, devuelve una lista vacía.
+        """
+        query_actas = "SELECT * FROM actas ORDER BY fecha_creacion DESC"
+        query_modismos = "SELECT * FROM modismos_detectados WHERE acta_id = ?"
+
+        try:
+            with self._get_connection() as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+
+                cursor.execute(query_actas)
+                rows = cursor.fetchall()
+
+                actas: List[Acta] = []
+                for row in rows:
+                    acta_id = row['id']
+
+                    # Modismos asociados
+                    cursor.execute(query_modismos, (acta_id,))
+                    modismos = [
+                        ModismoDetectado(
+                            id=m['id'],
+                            acta_id=m['acta_id'],
+                            expresion_original=m['expresion_original'],
+                            expresion_normalizada=m['expresion_normalizada'],
+                            posicion_inicio=m['posicion_inicio'],
+                            posicion_fin=m['posicion_fin'],
+                            accion_usuario=m['accion_usuario']
+                        ) for m in cursor.fetchall()
+                    ]
+
+                    # Parseo de fecha
+                    fecha_str = row['fecha_creacion']
+                    fecha_obj = None
+                    if fecha_str:
+                        try:
+                            fecha_obj = datetime.strptime(fecha_str, "%Y-%m-%d %H:%M:%S")
+                        except ValueError:
+                            try:
+                                fecha_obj = datetime.fromisoformat(
+                                    fecha_str.replace(' ', 'T')
+                                )
+                            except Exception:
+                                logger.warning(
+                                    f"Formato de fecha no reconocido: {fecha_str}"
+                                )
+
+                    actas.append(Acta(
+                        id=row['id'],
+                        titulo=row['titulo'],
+                        fecha_creacion=fecha_obj,
+                        idioma=row['idioma'],
+                        duracion_segundos=row['duracion_segundos'],
+                        archivo_audio_ruta=row['archivo_audio_ruta'],
+                        archivo_docx_ruta=row['archivo_docx_ruta'],
+                        wer_medido=row['wer_medido'],
+                        version_diccionario=row['version_diccionario'],
+                        modismos_detectados=modismos
+                    ))
+
+                logger.info(f"Se recuperaron {len(actas)} actas de la BD.")
+                return actas
+        except Exception as e:
+            logger.error(f"Error al obtener todas las actas: {e}")
+            raise

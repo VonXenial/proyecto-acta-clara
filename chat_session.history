@@ -16,19 +16,21 @@
   4. **Debugger:** GPT-OSS 120B (medium)
   5. **Orchestrator:** Claude Opus 4.6 (Thinkings)
 
-## Current Progress (2026-03-13)
-- [x] Methodology Alignment: Adopting "Incremental & Prototype" approach from PDF thesis.
-- [x] Versioning established in `docs/versions/`:
-    - **v0.1 (P0):** Data Persistence.
-    - **v0.2 (P1):** STT Engine.
-    - **v0.3 (P2):** NLP Normalization.
-    - **v0.4 (P3):** Integrated GUI.
-- [x] Audits created for v0.2 and v0.4 to track errors and limitations.
-- [x] All prototypes (P0-P2) verified with Master Integration Test.
+## Authority & Guidelines
+- **Source of Truth:** `AGENTES_ACTACLARA.md` (v1.1) is now the primary directive for all agents.
+- **Global Config:** `src/config.py` created (v0.4).
 
-## Next Actions
-1. **P4 Versioning:** Start v0.5 (P4) for DOCX Exporting.
-2. **v0.4 Refinement:** Fix limitations in Historial and Config views.
+## Current Progress (2026-03-13)
+- [x] v1.0 MVP COMPLETADO: Interfaz final integrada con todas las funcionalidades.
+- [x] Historial real vinculado a SQLite.
+- [x] Configuración funcional (Dark Mode / i18n / Rutas).
+- [x] Motor de exportación dual (DOCX/PDF) operativo.
+- [x] Pipeline de IA multihilo verificado.
+
+## Final Status
+- **Product Name:** ActaClara v1.0
+- **Quality Bar:** Production-ready for engineering thesis defense.
+- **Verification:** Integrated smoke tests passed.
 
 ## Blockers & Solutions
 - **FFmpeg Missing:** Resolved by downloading release binaries to local `bin/` directory.

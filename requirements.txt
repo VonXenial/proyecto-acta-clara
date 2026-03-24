@@ -10,11 +10,14 @@ faster-whisper
 torch
 torchaudio
 
-# Procesamiento de Audio
+# Procesamiento de Audio y Grabación
 pydub
+sounddevice
+numpy
 
 # Exportación de Documentos
 python-docx
+fpdf2
 
 # Utilidades
 python-dotenv

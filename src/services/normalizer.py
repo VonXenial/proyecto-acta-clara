@@ -31,6 +31,41 @@ class Normalizer:
             logger.error(f"Error al cargar el diccionario {self.dictionary_path}: {e}")
             self.modismos_dict = []
 
+    def add_new_idiom(self, original: str, normalizada: str):
+        """Agrega un nuevo modismo al diccionario y lo persiste en el JSON."""
+        # Verificar si ya existe
+        for mod in self.modismos_dict:
+            if mod["expresion_original"].lower() == original.lower():
+                mod["expresion_normalizada"] = normalizada
+                self._save_dictionary()
+                return
+
+        # Crear nuevo
+        new_id = f"custom_{len(self.modismos_dict) + 1:03d}"
+        self.modismos_dict.append({
+            "id": new_id,
+            "expresion_original": original,
+            "expresion_normalizada": normalizada,
+            "categoria": "usuario",
+            "frecuencia": "alta"
+        })
+        self._save_dictionary()
+
+    def _save_dictionary(self):
+        """Guarda el estado actual del diccionario en el archivo JSON."""
+        try:
+            # Leer el archivo completo para mantener la estructura metadata
+            with open(self.dictionary_path, 'r', encoding='utf-8') as f:
+                full_data = json.load(f)
+            
+            full_data["modismos"] = self.modismos_dict
+            
+            with open(self.dictionary_path, 'w', encoding='utf-8') as f:
+                json.dump(full_data, f, indent=4, ensure_ascii=False)
+            logger.info(f"Diccionario actualizado en {self.dictionary_path}")
+        except Exception as e:
+            logger.error(f"Error al guardar el diccionario: {e}")
+
     def normalize(self, text: str) -> Tuple[str, List[ModismoDetectado]]:
         """
         Detecta modismos en el texto, los reemplaza por su versión normalizada
@@ -42,22 +77,12 @@ class Normalizer:
         modismos_encontrados: List[ModismoDetectado] = []
         
         # Ordenar modismos por longitud de la expresión (descendente) 
-        # para evitar problemas de solapamiento (ej: "al tiro que sí" antes que "al tiro")
         sorted_modismos = sorted(self.modismos_dict, key=lambda x: len(x["expresion_original"]), reverse=True)
 
-        normalized_text = text
-        
-        # Usamos una estrategia de reemplazo que rastrea índices originales
-        # Sin embargo, para P2 se solicita detección con Regex y posiciones originales.
-        # Es complejo hacer reemplazos múltiples si cambian las longitudes de los strings 
-        # manteniendo posiciones "originales" coherentes si se hacen secuencialmente.
-        
-        # Estrategia: Buscar todos los matches primero sin modificar el texto original.
         matches_info = []
         for modismo in sorted_modismos:
             pattern = r'\b' + re.escape(modismo["expresion_original"]) + r'\b'
             for match in re.finditer(pattern, text, re.IGNORECASE):
-                # Evitar solapamientos: si este rango ya está cubierto, ignorar
                 start, end = match.span()
                 overlap = any(
                     (start >= m['start'] and start < m['end']) or 
@@ -74,10 +99,8 @@ class Normalizer:
                         'modismo_data': modismo
                     })
 
-        # Ordenar matches por posición de inicio para el reemplazo
         matches_info.sort(key=lambda x: x['start'])
 
-        # Crear objetos ModismoDetectado
         for match in matches_info:
             modismos_encontrados.append(
                 ModismoDetectado(
@@ -85,11 +108,10 @@ class Normalizer:
                     expresion_normalizada=match['normalizada'],
                     posicion_inicio=match['start'],
                     posicion_fin=match['end'],
-                    accion_usuario='ACEPTADA' # Valor por defecto inicial
+                    accion_usuario='ACEPTADA'
                 )
             )
 
-        # Realizar los reemplazos en el texto (de atrás hacia adelante para no romper los índices que quedan)
         temp_text = text
         for match in reversed(matches_info):
             temp_text = temp_text[:match['start']] + match['normalizada'] + temp_text[match['end']:]
