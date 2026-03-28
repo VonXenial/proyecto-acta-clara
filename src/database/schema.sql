@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS actas (
     archivo_audio_ruta TEXT,
     archivo_docx_ruta TEXT,
     wer_medido REAL,
-    version_diccionario TEXT DEFAULT '1.0'
+    version_diccionario TEXT DEFAULT '1.0',
+    transcripcion_texto TEXT
 );
 CREATE TABLE IF NOT EXISTS modismos_detectados (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

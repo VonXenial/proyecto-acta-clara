@@ -3,8 +3,8 @@ import os
 import logging
 from datetime import datetime
 from typing import Optional, List
-from src.models.acta import Acta
-from src.models.modismo import ModismoDetectado
+from src.models.acta import Acta # type: ignore
+from src.models.modismo import ModismoDetectado # type: ignore
 
 # Configuración básica de logging
 os.makedirs("logs", exist_ok=True)
@@ -47,6 +47,12 @@ class DBManager:
                 with open(schema_path, 'r', encoding='utf-8') as f:
                     schema = f.read()
                 conn.executescript(schema)
+                
+                # Migrate existing databases
+                try:
+                    conn.execute("ALTER TABLE actas ADD COLUMN transcripcion_texto TEXT")
+                except sqlite3.OperationalError:
+                    pass  # Column likely already exists
             logger.info("Base de datos inicializada correctamente.")
         except Exception as e:
             logger.error(f"Error al inicializar la base de datos: {e}")
@@ -59,8 +65,8 @@ class DBManager:
         query_acta = """
         INSERT INTO actas (
             titulo, idioma, duracion_segundos, archivo_audio_ruta, 
-            archivo_docx_ruta, wer_medido, version_diccionario
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            archivo_docx_ruta, wer_medido, version_diccionario, transcripcion_texto
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """
         try:
             with self._get_connection() as conn:
@@ -72,7 +78,8 @@ class DBManager:
                     acta.archivo_audio_ruta, 
                     acta.archivo_docx_ruta,
                     acta.wer_medido, 
-                    acta.version_diccionario
+                    acta.version_diccionario,
+                    acta.transcripcion_texto
                 ))
                 acta_id = cursor.lastrowid
                 
@@ -82,7 +89,9 @@ class DBManager:
                         self._insert_modismo_internal(cursor, modismo)
                 
             logger.info(f"Acta '{acta.titulo}' insertada con ID: {acta_id}")
-            return acta_id
+            if acta_id is None:
+                raise sqlite3.Error("No se pudo obtener el ID del acta insertada.")
+            return int(acta_id)
         except Exception as e:
             logger.error(f"Error al insertar acta '{acta.titulo}': {e}")
             raise
@@ -162,7 +171,8 @@ class DBManager:
                     archivo_docx_ruta=row['archivo_docx_ruta'],
                     wer_medido=row['wer_medido'],
                     version_diccionario=row['version_diccionario'],
-                    modismos_detectados=modismos
+                    modismos_detectados=modismos,
+                    transcripcion_texto=row['transcripcion_texto'] if 'transcripcion_texto' in row.keys() else None
                 )
         except Exception as e:
             logger.error(f"Error al obtener acta por ID {acta_id}: {e}")
@@ -231,11 +241,70 @@ class DBManager:
                         archivo_docx_ruta=row['archivo_docx_ruta'],
                         wer_medido=row['wer_medido'],
                         version_diccionario=row['version_diccionario'],
-                        modismos_detectados=modismos
+                        modismos_detectados=modismos,
+                        transcripcion_texto=row['transcripcion_texto'] if 'transcripcion_texto' in row.keys() else None
                     ))
 
                 logger.info(f"Se recuperaron {len(actas)} actas de la BD.")
                 return actas
         except Exception as e:
             logger.error(f"Error al obtener todas las actas: {e}")
+            raise
+
+    def delete_acta(self, acta_id: int):
+        """
+        Elimina un acta y sus modismos asociados de la base de datos.
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                # Los modismos se eliminan automáticamente si se configuró ON DELETE CASCADE,
+                # pero como el schema actual no lo tiene explícito, lo hacemos manual.
+                cursor.execute("DELETE FROM modismos_detectados WHERE acta_id = ?", (acta_id,))
+                cursor.execute("DELETE FROM actas WHERE id = ?", (acta_id,))
+            logger.info(f"Acta con ID {acta_id} eliminada correctamente.")
+        except Exception as e:
+            logger.error(f"Error al eliminar acta ID {acta_id}: {e}")
+            raise
+
+    def clear_history(self):
+        """
+        Limpia todo el historial de la base de datos (actas y modismos).
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM modismos_detectados")
+                cursor.execute("DELETE FROM actas")
+                # Resetear el autoincremento
+                cursor.execute("DELETE FROM sqlite_sequence WHERE name='actas'")
+                cursor.execute("DELETE FROM sqlite_sequence WHERE name='modismos_detectados'")
+            logger.info("Historial completo eliminado de la base de datos.")
+        except Exception as e:
+            logger.error(f"Error al limpiar el historial: {e}")
+    def purge_old_actas(self, months: int):
+        """
+        Elimina actas con una antigüedad mayor a la especificada en meses.
+        """
+        if months <= 0: return
+        
+        query = f"DELETE FROM actas WHERE datetime(fecha_creacion) < datetime('now', '-{months} months')"
+        
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                # Primero obtener IDs para limpiar modismos (si no hay CASCADE)
+                cursor.execute(f"SELECT id FROM actas WHERE datetime(fecha_creacion) < datetime('now', '-{months} months')")
+                ids = [row[0] for row in cursor.fetchall()]
+                
+                if ids:
+                    placeholders = ','.join(['?'] * len(ids))
+                    cursor.execute(f"DELETE FROM modismos_detectados WHERE acta_id IN ({placeholders})", ids)
+                    cursor.execute(query)
+                    
+                    logger.info(f"Mantenimiento: Se eliminaron {len(ids)} actas con antigüedad > {months} meses.")
+                    return len(ids)
+                return 0
+        except Exception as e:
+            logger.error(f"Error durante purga de actas antiguas: {e}")
             raise

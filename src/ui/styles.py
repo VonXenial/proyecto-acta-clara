@@ -46,14 +46,19 @@ COLORS = {
     }
 }
 
-FONTS = {
-    "title":    ("Segoe UI", 22, "bold"),
-    "heading":  ("Segoe UI", 14, "bold"),
-    "body":     ("Segoe UI", 10),
-    "small":    ("Segoe UI", 9),
-    "mono":     ("Consolas", 10),
-    "badge":    ("Segoe UI", 9, "bold"),
-}
+FONTS = {}
+
+def set_font_scale(scale: str):
+    base = {"pequeño": 8, "mediano": 10, "grande": 12, "extra_grande": 14}
+    sz = base.get(scale, 10)
+    FONTS["title"] = ("Segoe UI", sz + 12, "bold")
+    FONTS["heading"] = ("Segoe UI", sz + 4, "bold")
+    FONTS["body"] = ("Segoe UI", sz)  # type: ignore
+    FONTS["small"] = ("Segoe UI", sz - 1)  # type: ignore
+    FONTS["mono"] = ("Consolas", sz)  # type: ignore
+    FONTS["badge"] = ("Segoe UI", sz - 1, "bold")
+
+set_font_scale("mediano")
 
 DIMENSIONS = {
     "window_width":     1366,
@@ -111,15 +116,25 @@ def apply_styles(root: tk.Tk, theme="light"):
     # ── COMBOBOX PROFESIONAL ──
     style.configure("TCombobox", 
                     font=FONTS["body"], 
-                    fieldbackground="white", 
+                    fieldbackground=c["card_bg"], 
                     background=c["border"],
                     arrowcolor=c["primary"],
                     borderwidth=1,
                     relief="flat")
     
     style.map("TCombobox",
-              fieldbackground=[("readonly", "white")],
+              fieldbackground=[("readonly", c["card_bg"])],
               foreground=[("readonly", c["text_primary"])])
+
+    # ── ENTRY (INPUTS) PROFESIONAL ──
+    style.configure("TEntry", 
+                    fieldbackground=c["card_bg"], 
+                    foreground=c["text_primary"],
+                    padding=5)
+    
+    style.map("TEntry",
+              fieldbackground=[("focus", c["card_bg"]), ("readonly", c["bg"])],
+              foreground=[("focus", c["text_primary"])])
 
     style.configure("TProgressbar", troughcolor=c["border"], background=c["primary"], thickness=10)
     style.configure("Blue.Horizontal.TProgressbar", troughcolor=c["border"], background=c["primary"], thickness=8)

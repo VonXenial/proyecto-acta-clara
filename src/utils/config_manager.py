@@ -18,12 +18,10 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from src import config as _defaults
-
+import src.config as _defaults  # type: ignore
 logger = logging.getLogger("ConfigManager")
 
 
@@ -133,15 +131,15 @@ class ConfigManager:
         json_path = Path(base_dir) / self._CONFIG_JSON_NAME
         
         try:
-            # Leer actual para no borrar lo que no estamos tocando (aunque _settings ya tiene todo)
-            # Simplemente guardamos _settings filtrando constantes de src/config que no queremos en el JSON?
-            # En realidad, guardamos solo lo que ha cambiado respecto a los defaults?
-            # Por simplicidad para el MVP, guardamos todo lo que hay en _settings que no sea BASE_DIR o cosas internas
+            # Filtramos constantes internas que no deben ir al JSON
+            internal_keys = [
+                "BASE_DIR", "DATA_DIR", "DOCS_DIR", "BIN_DIR", 
+                "DB_PATH", "FFMPEG_PATH", "DICTIONARY_PATH", "VERSION"
+            ]
             
             save_dict = {}
             for k, v in self._settings.items():
-                # Solo guardamos lo que el usuario suele configurar
-                if k in ["APPEARANCE", "LANGUAGE", "EXPORT_PATH", "WHISPER_MODEL"]:
+                if k not in internal_keys:
                     save_dict[k.lower()] = v
             
             with open(json_path, "w", encoding="utf-8") as fh:

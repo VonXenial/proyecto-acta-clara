@@ -4,7 +4,7 @@ Tooltip interactivo para modismos con botones de acción
 
 import tkinter as tk
 from tkinter import ttk
-from src.ui.styles import COLORS, FONTS
+from src.ui.styles import COLORS # type: ignore
 
 class ModismTooltip(tk.Toplevel):
     """

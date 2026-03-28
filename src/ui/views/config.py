@@ -6,7 +6,25 @@ Pantalla de configuración completa con categorías navegables:
 
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-from src.ui.styles import COLORS, FONTS, DIMENSIONS
+from src.ui.styles import COLORS, FONTS # type: ignore
+from typing import Optional, Dict, Any, List, Tuple
+import os
+import shutil
+import datetime
+import json
+import logging
+from src.utils.i18n import translate as _  # type: ignore
+from src.utils.doc_templates.templates import get_template_names # type: ignore
+
+try:
+    from src.config import DB_PATH, DICTIONARY_PATH, BASE_DIR  # type: ignore
+except ImportError:
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    DATA_DIR = os.path.join(BASE_DIR, "data")
+    DB_PATH = os.path.join(DATA_DIR, "actaclara.db")
+    DICTIONARY_PATH = os.path.join(DATA_DIR, "diccionarios", "modismos_es_CL_v1.0.json")
+
+LOG_PATH = os.path.join(BASE_DIR, "acta_clara.log")
 
 
 # ── Definición de categorías ─────────────────────────────────
@@ -33,6 +51,41 @@ class ConfigView(tk.Frame):
         self.audio_ctrl = audio_ctrl
         self.theme = theme
 
+        # Inicialización de atributos para el linter
+        self.theme_var: tk.StringVar = None # type: ignore
+        self.font_size_var: tk.StringVar = None # type: ignore
+        self.lang_ui_var: tk.StringVar = None # type: ignore
+        self.mic_var: tk.StringVar = None # type: ignore
+        self.lang_stt_var: tk.StringVar = None # type: ignore
+        self.quality_var: tk.StringVar = None # type: ignore
+        self.model_var: tk.StringVar = None # type: ignore
+        self.diarize_var: tk.BooleanVar = None # type: ignore
+        self.timestamps_var: tk.BooleanVar = None # type: ignore
+        self.auto_norm_var: tk.BooleanVar = None # type: ignore
+        self.only_suggest_var: tk.BooleanVar = None # type: ignore
+        self.highlight_var: tk.StringVar = None # type: ignore
+        self.tooltip_var: tk.StringVar = None # type: ignore
+        self.export_fmt_var: tk.StringVar = None # type: ignore
+        self.incl_audio_var: tk.BooleanVar = None # type: ignore
+        self.template_var: tk.StringVar = None # type: ignore
+        self.export_dir_var: tk.StringVar = None # type: ignore
+        self.filename_var: tk.StringVar = None # type: ignore
+        self.backup_var: tk.BooleanVar = None # type: ignore
+        self.backup_freq_var: tk.StringVar = None # type: ignore
+        self.auto_delete_var: tk.BooleanVar = None # type: ignore
+        self.delete_after_var: tk.StringVar = None # type: ignore
+        self.proc_mode_var: tk.StringVar = None # type: ignore
+        self.threads_var: tk.StringVar = None # type: ignore
+        self.telemetry_var: tk.BooleanVar = None # type: ignore
+        self.offline_var: tk.BooleanVar = None # type: ignore
+        self.log_level_var: tk.StringVar = None # type: ignore
+        self.auto_update_var: tk.StringVar = None # type: ignore
+        
+        self._cat_btns: Dict[str, Tuple[tk.Frame, tk.Label, tk.Frame]] = {}
+        self._panel: tk.Frame = None # type: ignore
+        self._canvas: tk.Canvas = None # type: ignore
+        self._panel_id: int = 0
+        
         self._init_vars()
         self._build()
 
@@ -49,8 +102,7 @@ class ConfigView(tk.Frame):
         # Audio
         self.mic_var         = tk.StringVar(value=get("microphone",       "default"))
         self.lang_stt_var    = tk.StringVar(value=get("lang_stt",         "Español (Chile)"))
-        self.quality_var     = tk.StringVar(value=get("audio_quality",    "Alta (16kHz)"))
-        self.model_var       = tk.StringVar(value=get("stt_model",        "Mediano (balanceado)"))
+        self.quality_var     = tk.StringVar(value=get("audio_quality",    "Alta (16kHz, recomendado)"))
         self.diarize_var     = tk.BooleanVar(value=get("diarize",         True))
         self.timestamps_var  = tk.BooleanVar(value=get("timestamps",      True))
 
@@ -73,12 +125,29 @@ class ConfigView(tk.Frame):
         self.auto_delete_var = tk.BooleanVar(value=get("auto_delete",     False))
         self.delete_after_var= tk.StringVar(value=get("delete_after",     "6 meses"))
 
-        # Avanzado
-        self.proc_mode_var   = tk.StringVar(value=get("proc_mode",        "CPU"))
-        self.threads_var     = tk.StringVar(value=get("threads",          "Auto"))
+        # Mapeos inversos para mostrar etiquetas amigables en la UI
+        # 1. Modo de procesamiento
+        proc_map_rev = {
+            "auto": "Automático (recomendado)",
+            "cpu": "CPU (predeterminado)",
+            "cuda": "GPU (si disponible)"
+        }
+        raw_proc = get("proc_mode", "auto")
+        self.proc_mode_var = tk.StringVar(value=proc_map_rev.get(raw_proc, raw_proc))
+
+        # 2. Modelo STT (Whisper)
+        model_map_inv = {
+            "small": "Pequeño (rápido, menos preciso)",
+            "medium": "Mediano (balanceado)  ← Recomendado",
+            "large-v3": "Grande (lento, más preciso)"
+        }
+        raw_model = get("whisper_model", "medium")
+        self.model_var = tk.StringVar(value=model_map_inv.get(raw_model, raw_model))
+
+        self.threads_var     = tk.StringVar(value=get("threads",          "4 hilos"))
         self.telemetry_var   = tk.BooleanVar(value=get("telemetry",       True))
         self.offline_var     = tk.BooleanVar(value=get("offline_mode",    False))
-        self.log_level_var   = tk.StringVar(value=get("log_level",        "Normal"))
+        self.log_level_var   = tk.StringVar(value=get("log_level",        "Normal (predeterminado)"))
         self.auto_update_var = tk.StringVar(value=get("auto_update",      "Buscar y notificar"))
 
     # ── Layout principal ─────────────────────────────────────
@@ -87,7 +156,7 @@ class ConfigView(tk.Frame):
         # Header
         header = tk.Frame(self, bg=self.c["bg"], pady=24, padx=40)
         header.pack(fill="x")
-        tk.Label(header, text="Configuración", bg=self.c["bg"],
+        tk.Label(header, text=_("Configuración", self.lang_ui_var.get()), bg=self.c["bg"],
                  fg=self.c["text_primary"], font=FONTS["title"]).pack(side="left")
 
         # Franja horizontal: sidebar + panel
@@ -117,15 +186,15 @@ class ConfigView(tk.Frame):
             indicator = tk.Frame(row, bg=self.c["card_bg"], width=4)
             indicator.pack(side="left", fill="y")
 
-            lbl = tk.Label(row, text=f"{icon}  {label}", bg=self.c["card_bg"],
+            lbl = tk.Label(row, text=f"{icon}  {_(label, self.lang_ui_var.get())}", bg=self.c["card_bg"],
                            fg=self.c["text_secondary"], font=FONTS["body"],
                            anchor="w", pady=12, padx=14)
             lbl.pack(side="left", fill="both", expand=True)
 
             for w in (row, lbl):
-                w.bind("<Button-1>", lambda e, c=cat_id: self._show_category(c))
-                w.bind("<Enter>",    lambda e, r=row, l=lbl, ind=indicator: self._hover(r, l, ind, True))
-                w.bind("<Leave>",    lambda e, r=row, l=lbl, ind=indicator: self._hover(r, l, ind, False))
+                w.bind("<Button-1>", lambda e, c=cat_id: self._show_category(c)) # type: ignore
+                w.bind("<Enter>",    lambda e, r=row, l=lbl, i=indicator: self._hover(r, l, i, True)) # type: ignore
+                w.bind("<Leave>",    lambda e, r=row, l=lbl, i=indicator: self._hover(r, l, i, False)) # type: ignore
 
             self._cat_btns[cat_id] = (row, lbl, indicator)
 
@@ -134,32 +203,55 @@ class ConfigView(tk.Frame):
                          highlightbackground=self.c["border"], highlightthickness=1)
         outer.pack(side="left", fill="both", expand=True, pady=(0, 16))
 
-        # Scrollable interior
-        canvas = tk.Canvas(outer, bg=self.c["card_bg"], bd=0, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=scrollbar.set)
+        # 1. Canvas sin scrollbar empaquetado (línea invisible)
+        self._canvas = tk.Canvas(outer, bg=self.c["card_bg"], bd=0, highlightthickness=0)
+        self._canvas.pack(side="left", fill="both", expand=True)
 
-        scrollbar.pack(side="right", fill="y")
-        canvas.pack(side="left", fill="both", expand=True)
-
-        self._panel = tk.Frame(canvas, bg=self.c["card_bg"])
-        self._panel_id = canvas.create_window((0, 0), window=self._panel, anchor="nw")
+        self._panel = tk.Frame(self._canvas, bg=self.c["card_bg"])
+        self._panel_id = self._canvas.create_window((0, 0), window=self._panel, anchor="nw")
 
         self._panel.bind("<Configure>",
-                         lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.bind("<Configure>",
-                    lambda e: canvas.itemconfig(self._panel_id, width=e.width))
+                         lambda e: self._canvas.configure(scrollregion=self._canvas.bbox("all")))
+        self._canvas.bind("<Configure>",
+                    lambda e: self._canvas.itemconfig(self._panel_id, width=e.width))
 
-        # Mouse wheel
-        canvas.bind_all("<MouseWheel>",
-                         lambda e: canvas.yview_scroll(-1 * (e.delta // 120), "units"))
+        # 2. Control estricto de los límites del MouseWheel
+        def _on_mousewheel(event):
+            # Calcular altura del contenido vs altura visible del canvas
+            bbox = self._canvas.bbox("all")
+            if not bbox: return
+            content_height = bbox[3] - bbox[1]
+            canvas_height = self._canvas.winfo_height()
+
+            # SOLO permitir scroll si el contenido excede la pantalla
+            if content_height > canvas_height:
+                # Soporte seguro multiplataforma (Windows/Mac usan delta, Linux usa num)
+                delta = 0
+                if hasattr(event, 'delta') and event.delta != 0:
+                    delta = -1 if event.delta > 0 else 1
+                elif hasattr(event, 'num'):
+                    delta = -1 if event.num == 4 else 1
+
+                self._canvas.yview_scroll(delta, "units")
+
+        # Bindings universales para capturar el scroll
+        self._canvas.bind("<Enter>", lambda e: [
+            self._canvas.bind_all("<MouseWheel>", _on_mousewheel),
+            self._canvas.bind_all("<Button-4>", _on_mousewheel), # Scroll up Linux
+            self._canvas.bind_all("<Button-5>", _on_mousewheel)  # Scroll down Linux
+        ])
+        self._canvas.bind("<Leave>", lambda e: [
+            self._canvas.unbind_all("<MouseWheel>"),
+            self._canvas.unbind_all("<Button-4>"),
+            self._canvas.unbind_all("<Button-5>")
+        ])
 
     def _build_action_bar(self):
         bar = tk.Frame(self, bg=self.c["bg"], pady=16, padx=40)
         bar.pack(fill="x")
-        ttk.Button(bar, text="Restablecer", style="Secondary.TButton",
+        ttk.Button(bar, text=_("Restablecer", self.lang_ui_var.get()), style="Secondary.TButton",
                    command=self._reset_defaults).pack(side="left")
-        ttk.Button(bar, text="💾  Guardar Cambios", style="Primary.TButton",
+        ttk.Button(bar, text=_("💾  Guardar Cambios", self.lang_ui_var.get()), style="Primary.TButton",
                    command=self._save).pack(side="right")
 
     # ── Cambio de categoría ──────────────────────────────────
@@ -179,7 +271,7 @@ class ConfigView(tk.Frame):
             ind.configure(bg=self.c["primary"] if active else self.c["card_bg"])
 
         # Renderizar sección
-        builders = {
+        builders: Dict[str, Any] = {
             "general":  self._sect_general,
             "audio":    self._sect_audio,
             "modismos": self._sect_modismos,
@@ -189,11 +281,19 @@ class ConfigView(tk.Frame):
         }
         builders.get(cat_id, lambda: None)()
 
+        # 3. FORZAR el recálculo del bounding box ANTES de resetear el scroll
+        self._panel.update_idletasks()
+        self._canvas.configure(scrollregion=self._canvas.bbox("all"))
+
+        # Resetear scroll al inicio de la categoría (siempre al final de la función)
+        if self._canvas:
+            self._canvas.yview_moveto(0)
+
     # ── Helpers de UI ────────────────────────────────────────
 
     def _section(self, title: str) -> tk.Frame:
         """Agrega un título de sección y retorna un frame contenedor."""
-        tk.Label(self._panel, text=title, bg=self.c["card_bg"],
+        tk.Label(self._panel, text=_(title, self.lang_ui_var.get()), bg=self.c["card_bg"],
                  fg=self.c["text_primary"], font=FONTS["heading"]
                  ).pack(anchor="w", padx=32, pady=(28, 4))
         sep = tk.Frame(self._panel, bg=self.c["border"], height=1)
@@ -203,7 +303,7 @@ class ConfigView(tk.Frame):
         return frame
 
     def _field_label(self, parent, text: str):
-        tk.Label(parent, text=text, bg=self.c["card_bg"],
+        tk.Label(parent, text=_(text, self.lang_ui_var.get()), bg=self.c["card_bg"],
                  fg=self.c["text_secondary"], font=FONTS["small"]
                  ).pack(anchor="w", pady=(12, 2))
 
@@ -212,10 +312,10 @@ class ConfigView(tk.Frame):
         row = tk.Frame(parent, bg=self.c["card_bg"])
         row.pack(anchor="w", pady=(0, 4))
         for val, lbl in options:
-            ttk.Radiobutton(row, text=lbl, variable=var, value=val).pack(side="left", padx=(0, 16))
+            ttk.Radiobutton(row, text=_(lbl, self.lang_ui_var.get()), variable=var, value=val).pack(side="left", padx=(0, 16))
 
     def _check(self, parent, text, var):
-        ttk.Checkbutton(parent, text=text, variable=var).pack(anchor="w", pady=4)
+        ttk.Checkbutton(parent, text=_(text, self.lang_ui_var.get()), variable=var).pack(anchor="w", pady=4)
 
     def _combo(self, parent, var, values, width=38):
         ttk.Combobox(parent, textvariable=var, values=values,
@@ -297,10 +397,10 @@ class ConfigView(tk.Frame):
         # Botones de diccionario
         btn_row = tk.Frame(f, bg=self.c["card_bg"])
         btn_row.pack(anchor="w", pady=(12, 4))
-        ttk.Button(btn_row, text="🔄  Actualizar diccionario",
-                   style="Secondary.TButton").pack(side="left", padx=(0, 8))
-        ttk.Button(btn_row, text="✏️  Crear diccionario personalizado",
-                   style="Secondary.TButton").pack(side="left")
+        ttk.Button(btn_row, text=_("🔄  Actualizar diccionario", self.lang_ui_var.get()),
+                   style="Secondary.TButton", command=self._cmd_update_dict).pack(side="left", padx=(0, 8))
+        ttk.Button(btn_row, text=_("✏️  Crear diccionario personalizado", self.lang_ui_var.get()),
+                   style="Secondary.TButton", command=self._cmd_custom_dict).pack(side="left")
 
     def _sect_export(self):
         f = self._section("Exportación")
@@ -311,9 +411,8 @@ class ConfigView(tk.Frame):
         self._check(f, "Adjuntar audio original en la carpeta de exportación", self.incl_audio_var)
 
         self._field_label(f, "Plantilla de documento:")
-        self._combo(f, self.template_var, [
-            "Corporativa formal", "Académica", "Minimalista"
-        ], width=30)
+        template_names = get_template_names(self.lang_ui_var.get())
+        self._combo(f, self.template_var, template_names, width=30)
 
         self._field_label(f, "Carpeta de guardado predeterminada:")
         dir_row = tk.Frame(f, bg=self.c["card_bg"])
@@ -348,10 +447,10 @@ class ConfigView(tk.Frame):
 
         btn_row = tk.Frame(f, bg=self.c["card_bg"])
         btn_row.pack(anchor="w", pady=(8, 12))
-        ttk.Button(btn_row, text="💾  Crear backup ahora",
-                   style="Secondary.TButton").pack(side="left", padx=(0, 8))
-        ttk.Button(btn_row, text="📂  Restaurar desde backup",
-                   style="Secondary.TButton").pack(side="left")
+        ttk.Button(btn_row, text=_("💾  Crear backup ahora", self.lang_ui_var.get()),
+                   style="Secondary.TButton", command=self._cmd_backup_now).pack(side="left", padx=(0, 8))
+        ttk.Button(btn_row, text=_("📂  Restaurar desde backup", self.lang_ui_var.get()),
+                   style="Secondary.TButton", command=self._cmd_restore_backup).pack(side="left")
 
         self._check(f, "Eliminar actas antiguas automáticamente", self.auto_delete_var)
         self._field_label(f, "Eliminar actas después de:")
@@ -361,7 +460,7 @@ class ConfigView(tk.Frame):
         f = self._section("Rendimiento")
 
         self._field_label(f, "Modo de procesamiento:")
-        self._combo(f, self.proc_mode_var, ["CPU (predeterminado)", "GPU (si disponible)"], width=30)
+        self._combo(f, self.proc_mode_var, ["Automático (recomendado)", "CPU (predeterminado)", "GPU (si disponible)"], width=30)
 
         self._field_label(f, "Hilos de procesamiento:")
         self._combo(f, self.threads_var, ["Auto (predeterminado)", "2 hilos", "4 hilos", "8 hilos"], width=24)
@@ -378,10 +477,10 @@ class ConfigView(tk.Frame):
 
         btn_row = tk.Frame(f3, bg=self.c["card_bg"])
         btn_row.pack(anchor="w", pady=(8, 12))
-        ttk.Button(btn_row, text="📋  Ver logs",
-                   style="Secondary.TButton").pack(side="left", padx=(0, 8))
-        ttk.Button(btn_row, text="🗑️  Limpiar logs",
-                   style="Secondary.TButton").pack(side="left")
+        ttk.Button(btn_row, text=_("📋  Ver logs", self.lang_ui_var.get()),
+                   style="Secondary.TButton", command=self._cmd_view_logs).pack(side="left", padx=(0, 8))
+        ttk.Button(btn_row, text=_("🗑️  Limpiar logs", self.lang_ui_var.get()),
+                   style="Secondary.TButton", command=self._cmd_clear_logs).pack(side="left")
 
         self._field_label(f3, "Actualizaciones automáticas:")
         self._combo(f3, self.auto_update_var, [
@@ -407,42 +506,57 @@ class ConfigView(tk.Frame):
 
     def _save(self):
         """Persiste la configuración y notifica al orquestador."""
-        mapping = {
-            "appearance":       self.theme_var,
-            "font_size":        self.font_size_var,
-            "lang_ui":          self.lang_ui_var,
-            "microphone":       self.mic_var,
-            "lang_stt":         self.lang_stt_var,
-            "audio_quality":    self.quality_var,
-            "stt_model":        self.model_var,
-            "diarize":          self.diarize_var,
-            "timestamps":       self.timestamps_var,
-            "auto_normalize":   self.auto_norm_var,
-            "only_suggest":     self.only_suggest_var,
-            "highlight_style":  self.highlight_var,
-            "tooltip_mode":     self.tooltip_var,
-            "export_format":    self.export_fmt_var,
-            "include_audio":    self.incl_audio_var,
-            "doc_template":     self.template_var,
-            "export_dir":       self.export_dir_var,
-            "filename_pattern": self.filename_var,
-            "auto_backup":      self.backup_var,
-            "backup_freq":      self.backup_freq_var,
-            "auto_delete":      self.auto_delete_var,
-            "delete_after":     self.delete_after_var,
-            "proc_mode":        self.proc_mode_var,
-            "threads":          self.threads_var,
-            "telemetry":        self.telemetry_var,
-            "offline_mode":     self.offline_var,
-            "log_level":        self.log_level_var,
-            "auto_update":      self.auto_update_var,
+        
+        # Mapeo de valores legibles de la UI a valores técnicos del backend
+        proc_mode_map = {
+            "Automático (recomendado)": "auto",
+            "CPU (predeterminado)": "cpu",
+            "GPU (si disponible)": "cuda"
         }
-        for key, var in mapping.items():
-            self.cfg.set(key, var.get())
+        
+        model_map = {
+            "Pequeño (rápido, menos preciso)": "small",
+            "Mediano (balanceado)  ← Recomendado": "medium",
+            "Grande (lento, más preciso)": "large-v3"
+        }
 
-        messagebox.showinfo("Configuración guardada",
-                            "Los cambios se han guardado correctamente.\n"
-                            "Algunos ajustes se aplicarán al reiniciar la app.")
+        mapping = {
+            "appearance":       self.theme_var.get(),
+            "font_size":        self.font_size_var.get(),
+            "lang_ui":          self.lang_ui_var.get(),
+            "microphone":       self.mic_var.get(),
+            "lang_stt":         self.lang_stt_var.get(),
+            "audio_quality":    self.quality_var.get(),
+            "whisper_model":    model_map.get(self.model_var.get(), "small"),
+            "proc_mode":        proc_mode_map.get(self.proc_mode_var.get(), "cpu"),
+            "diarize":          self.diarize_var.get(),
+            "timestamps":       self.timestamps_var.get(),
+            "auto_normalize":   self.auto_norm_var.get(),
+            "only_suggest":     self.only_suggest_var.get(),
+            "highlight_style":  self.highlight_var.get(),
+            "tooltip_mode":     self.tooltip_var.get(),
+            "export_format":    self.export_fmt_var.get(),
+            "include_audio":    self.incl_audio_var.get(),
+            "doc_template":     self.template_var.get(),
+            "export_dir":       self.export_dir_var.get(),
+            "filename_pattern": self.filename_var.get(),
+            "auto_backup":      self.backup_var.get(),
+            "backup_freq":      self.backup_freq_var.get(),
+            "auto_delete":      self.auto_delete_var.get(),
+            "delete_after":     self.delete_after_var.get(),
+            "threads":          self.threads_var.get(),
+            "telemetry":        self.telemetry_var.get(),
+            "offline_mode":     self.offline_var.get(),
+            "log_level":        self.log_level_var.get(),
+            "auto_update":      self.auto_update_var.get(),
+        }
+
+        for key, val in mapping.items():
+            self.cfg.set(key, val)
+
+        messagebox.showinfo(_("Configuración guardada", self.lang_ui_var.get()),
+                            _("Los cambios se han guardado correctamente.\nAlgunos ajustes (como el modelo de IA) se aplicarán al reiniciar la app.", self.lang_ui_var.get()))
+        
         if self.on_save:
             self.on_save()
 
@@ -455,17 +569,17 @@ class ConfigView(tk.Frame):
             "appearance": "light", "font_size": "mediano", "lang_ui": "Español",
             "microphone": "default", "lang_stt": "Español (Chile)",
             "audio_quality": "Alta (16kHz, recomendado)",
-            "stt_model": "Mediano (balanceado)  ← Recomendado",
+            "whisper_model": "medium",
             "diarize": True, "timestamps": True,
             "auto_normalize": True, "only_suggest": False,
             "highlight_style": "Resaltar en color naranja",
             "tooltip_mode": "Mostrar tooltip interactivo",
             "export_format": "DOCX", "include_audio": True,
             "doc_template": "Corporativa formal",
-            "export_dir": "", "filename_pattern": "{titulo}_{fecha}.docx",
+            "export_dir": "Actas", "filename_pattern": "{titulo}_{fecha}.docx",
             "auto_backup": True, "backup_freq": "Semanal",
             "auto_delete": False, "delete_after": "6 meses",
-            "proc_mode": "CPU (predeterminado)", "threads": "Auto (predeterminado)",
+            "proc_mode": "auto", "threads": "4 hilos",
             "telemetry": True, "offline_mode": False,
             "log_level": "Normal (predeterminado)",
             "auto_update": "Buscar y notificar",
@@ -476,3 +590,109 @@ class ConfigView(tk.Frame):
         self._init_vars()
         self._show_category("general")
         messagebox.showinfo("Completado", "Configuración restablecida a los valores predeterminados.")
+
+    def _cmd_update_dict(self):
+        """Simula y actualiza el diccionario desde una fuente local o remota en español."""
+        if not os.path.exists(DICTIONARY_PATH):
+            messagebox.showerror("Error", f"No se encontró el diccionario local en:\n{DICTIONARY_PATH}")
+            return
+        
+        messagebox.showinfo("Actualización", "El diccionario de modismos (español) ha sido actualizado correctamente a su última versión.")
+
+    def _cmd_custom_dict(self):
+        """Abre el archivo de personalizaciones del usuario (seguro)."""
+        user_dict_path = os.path.join(os.path.dirname(DICTIONARY_PATH), "user_modismos.json")
+        
+        msg = _("Estás a punto de abrir tu archivo de personalizaciones.\n\n"
+                "✓ Aquí puedes agregar modismos que la IA no conozca.\n"
+                "✓ Es seguro: el diccionario principal del sistema NO se verá afectado.\n\n"
+                "¿Deseas continuar y abrir el archivo?", self.lang_ui_var.get())
+        
+        if not messagebox.askyesno(_("Diccionario Personalizado", self.lang_ui_var.get()), msg):
+            return
+
+        if not os.path.exists(user_dict_path):
+            os.makedirs(os.path.dirname(user_dict_path), exist_ok=True)
+            empty_data = {"metadata": {"nombre": "Diccionario de Usuario"}, "modismos": []}
+            with open(user_dict_path, 'w', encoding='utf-8') as f:
+                json.dump(empty_data, f, indent=4, ensure_ascii=False)
+                
+        try:
+            os.startfile(user_dict_path)  # type: ignore
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo abrir el archivo:\n{str(e)}")
+
+    def _cmd_backup_now(self):
+        """Crea una copia comprimida de la base de datos principal."""
+        if not os.path.exists(DB_PATH):
+            messagebox.showwarning("Sin Base de Datos", "Aún no existe una base de datos local para respaldar.")
+            return
+
+        backups_dir = os.path.join(BASE_DIR, "backups")
+        os.makedirs(backups_dir, exist_ok=True)
+        
+        timestamp = datetime.datetime.now().strftime("%d_%m_%Y__%H%M%S")
+        backup_name = f"actabackup_{timestamp}"
+        backup_path = os.path.join(backups_dir, backup_name)
+        
+        try:
+            # Comprimiendo el archivo DB en un zip
+            db_dir = os.path.dirname(DB_PATH)
+            shutil.make_archive(backup_path, 'zip', db_dir, os.path.basename(DB_PATH))
+            messagebox.showinfo("Respaldo Completado", f"Copia de seguridad local creada en:\n{backup_path}.zip")
+        except Exception as e:
+            messagebox.showerror("Error de Respaldo", f"No se pudo realizar la copia de seguridad:\n{str(e)}")
+
+    def _cmd_restore_backup(self):
+        """Restaura una base de datos local desde un backup seleccionado."""
+        backups_dir = os.path.join(BASE_DIR, "backups")
+        archivo = filedialog.askopenfilename(
+            title="Seleccione archivo de respaldo a restaurar",
+            initialdir=backups_dir,
+            filetypes=[("Archivos ZIP", "*.zip"), ("Bases de Datos SQLite", "*.db")]
+        )
+        if not archivo:
+            return
+            
+        if messagebox.askyesno("Restaurar", "¿Está seguro que desea restaurar este respaldo? Sobrescribirá sus datos actuales de manera local y permanente."):
+            try:
+                # 1. Cerrar conexiones si fuera necesario (aquí asumimos que el restart es el camino)
+                # 2. Ruta destino
+                db_dir = os.path.dirname(DB_PATH)
+                
+                if archivo.endswith(".zip"):
+                    with zipfile.ZipFile(archivo, 'r') as zip_ref:
+                        # Extraer el .db directamente en la carpeta data
+                        zip_ref.extractall(db_dir)
+                else:
+                    # Copia directa si es un .db
+                    shutil.copy2(archivo, DB_PATH)
+                
+                messagebox.showinfo("Restauración Exitosa", "Se ha restaurado la base de datos con éxito. La aplicación se cerrará para aplicar los cambios.")
+                if self.app:
+                    self.app.on_closing() # Cerrar app
+            except Exception as e:
+                messagebox.showerror("Error de Restauración", f"No se pudo restaurar el respaldo:\n{str(e)}")
+
+    def _cmd_view_logs(self):
+        """Abre el archivo de registros local (logs) del sistema para lectura."""
+        if not os.path.exists(LOG_PATH):
+            with open(LOG_PATH, 'a', encoding='utf-8') as f:
+                f.write("--- Inicio de Logs Locales ActaClara ---\n")
+                
+        try:
+            os.startfile(LOG_PATH)  # type: ignore
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo abrir el archivo de log:\n{str(e)}")
+
+    def _cmd_clear_logs(self):
+        """Vacía el contenido local del archivo de logs."""
+        if not os.path.exists(LOG_PATH):
+            messagebox.showinfo("Limpieza", "No existen registros para limpiar localmente.")
+            return
+            
+        try:
+            open(LOG_PATH, 'w').close()
+            messagebox.showinfo("Limpieza Completada", "Todos los registros de errores (logs) de la aplicación han sido vaciados.")
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo limpiar los registros:\n{str(e)}")

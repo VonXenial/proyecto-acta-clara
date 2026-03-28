@@ -19,3 +19,4 @@ class Acta:
     wer_medido: Optional[float] = None
     version_diccionario: str = '1.0'
     modismos_detectados: Optional[List[ModismoDetectado]] = None
+    transcripcion_texto: Optional[str] = None

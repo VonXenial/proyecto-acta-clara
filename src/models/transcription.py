@@ -18,3 +18,4 @@ class Transcription:
     segmentos: List[TranscripcionSegmento] = field(default_factory=list)
     idioma_detectado: Optional[str] = None
     duracion_procesada: Optional[float] = None
+    confianza_media: float = 0.0

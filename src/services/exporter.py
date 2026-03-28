@@ -16,17 +16,20 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from docx import Document
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.shared import Pt, RGBColor
+from docx import Document # type: ignore
+from docx.enum.text import WD_ALIGN_PARAGRAPH # type: ignore
+from docx.shared import Pt, RGBColor # type: ignore
+from docx.oxml import OxmlElement # type: ignore
+from docx.oxml.ns import qn # type: ignore
 
-from src.database.db_manager import DBManager
-from src.models.acta import Acta
+from src.database.db_manager import DBManager # type: ignore
+from src.models.acta import Acta # type: ignore
 
 logger = logging.getLogger("DocxExporter")
 
@@ -119,16 +122,17 @@ class DocxExporter(ExporterInterface):
         >>> path = exporter.save_and_record(acta_id=1, output_path=Path("out.docx"))
     """
 
-    # Colores corporativos ActaClara
-    _COLOR_TITULO: RGBColor = RGBColor(0x1F, 0x49, 0x7D)   # Azul corporativo
-    _COLOR_SECCION: RGBColor = RGBColor(0x2E, 0x74, 0xB5)  # Azul sección
-    _FUENTE_BASE: str = "Calibri"
+    _COLOR_TITULO: RGBColor
+    _COLOR_SECCION: RGBColor
+    _FUENTE_BASE: str
+    _ALIGN_TEXT: int
 
     def __init__(
         self,
         acta: Acta,
         metadata: ActaMetadata,
         db_manager: Optional[DBManager] = None,
+        template_name: str = "Corporativa Formal",
     ) -> None:
         """Inicializa el exportador con los datos del acta.
 
@@ -137,11 +141,32 @@ class DocxExporter(ExporterInterface):
             metadata: Información complementaria capturada en la UI.
             db_manager: Gestor de BD. Si es ``None`` se usa la instancia
                 Singleton de ``DBManager``.
+            template_name: Nombre del tipo de plantilla a aplicar ("Corporativa Formal", "Académica", "Minimalista").
         """
         self.acta: Acta = acta
         self.metadata: ActaMetadata = metadata
         self.document: Document = Document()
         self.db_manager: DBManager = db_manager or DBManager()
+        self.template_name = template_name
+        self._apply_template_config()
+
+    def _apply_template_config(self) -> None:
+        """Configura dinámicamente los estilos base según la plantilla escogida."""
+        if self.template_name == "Académica":
+            self._COLOR_TITULO: RGBColor = RGBColor(0x00, 0x00, 0x00)
+            self._COLOR_SECCION: RGBColor = RGBColor(0x00, 0x00, 0x00)
+            self._FUENTE_BASE: str = "Times New Roman"
+            self._ALIGN_TEXT = WD_ALIGN_PARAGRAPH.JUSTIFY
+        elif self.template_name == "Minimalista":
+            self._COLOR_TITULO = RGBColor(0x21, 0x21, 0x21)
+            self._COLOR_SECCION = RGBColor(0x64, 0x64, 0x64)
+            self._FUENTE_BASE = "Arial"
+            self._ALIGN_TEXT = WD_ALIGN_PARAGRAPH.LEFT
+        else: # Corporativa Formal u otro fallback
+            self._COLOR_TITULO = RGBColor(0x1F, 0x49, 0x7D)
+            self._COLOR_SECCION = RGBColor(0x2E, 0x74, 0xB5)
+            self._FUENTE_BASE = "Calibri"
+            self._ALIGN_TEXT = WD_ALIGN_PARAGRAPH.JUSTIFY
 
     # -- Métodos públicos ---------------------------------------------------
 
@@ -211,9 +236,12 @@ class DocxExporter(ExporterInterface):
             run.font.bold = True
             run.font.color.rgb = self._COLOR_SECCION
 
+        # Limpiar timestamps del contenido [00:00] antes de exportar
+        clean_content = re.sub(r'\[\d{1,2}:\d{2}\]\s*', '', content)
+
         # Contenido de la sección
-        parrafo = self.document.add_paragraph(content)
-        parrafo.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        parrafo = self.document.add_paragraph(clean_content)
+        parrafo.alignment = self._ALIGN_TEXT
         for run in parrafo.runs:
             run.font.name = self._FUENTE_BASE
             run.font.size = Pt(11)
@@ -285,28 +313,52 @@ class DocxExporter(ExporterInterface):
             for par in celda_label.paragraphs:
                 for run in par.runs:
                     run.font.bold = True
-                    run.font.name = self._FUENTE_BASE
-
         self.document.add_paragraph()
 
     def _build_footer(self) -> None:
-        """Agrega información de versión en el pie de página del documento.
-
-        Incluye el idioma y la versión del diccionario utilizado para
-        la normalización de modismos.
-        """
+        """Agrega información de versión y número de página en el pie de página del documento."""
         seccion = self.document.sections[0]
         footer = seccion.footer
+        
+        # Eliminar párrafos existentes si los hay para evitar duplicados
+        for p in footer.paragraphs:
+            p.text = ""
+
         footer_par = footer.paragraphs[0]
-        footer_par.text = (
+        footer_par.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        
+        # 1. Info de versión (Lado izquierdo/centro)
+        run_info = footer_par.add_run(
             f"ActaClara | Idioma: {self.acta.idioma} | "
             f"Diccionario v{self.acta.version_diccionario}"
         )
-        footer_par.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        for run in footer_par.runs:
-            run.font.size = Pt(8)
-            run.font.color.rgb = RGBColor(0x80, 0x80, 0x80)
+        run_info.font.size = Pt(8)
+        run_info.font.color.rgb = RGBColor(0x80, 0x80, 0x80)
 
+        # 2. Número de página (Lado derecho - usando tabuladores o alineación)
+        # En Word, una forma limpia es añadir un campo PAGE
+        footer_par.add_run("\t\tPágina ")
+        self._add_page_number(footer_par)
+
+    def _add_page_number(self, paragraph) -> None:
+        """Inserta un campo XML de número de página en el párrafo."""
+        run = paragraph.add_run()
+        run.font.size = Pt(8)
+        run.font.color.rgb = RGBColor(0x80, 0x80, 0x80)
+
+        fldChar = OxmlElement('w:fldChar')
+        fldChar.set(qn('w:fldCharType'), 'begin')
+        
+        instrText = OxmlElement('w:instrText')
+        instrText.set(qn('xml:space'), 'preserve')
+        instrText.text = "PAGE"
+        
+        fldChar2 = OxmlElement('w:fldChar')
+        fldChar2.set(qn('w:fldCharType'), 'end')
+        
+        run._r.append(fldChar)
+        run._r.append(instrText)
+        run._r.append(fldChar2)
     def _build_all_sections(self, texto_normalizado: str) -> None:
         """Orquesta la creación de todas las secciones del acta.
 
@@ -416,17 +468,18 @@ class PdfExporter(ExporterInterface):
         >>> path = exporter.save_and_record(acta_id=1, output_path=Path("out.pdf"))
     """
 
-    # Colores corporativos (R, G, B)
-    _COLOR_TITULO = (31, 73, 125)       # Azul corporativo
-    _COLOR_SECCION = (46, 116, 181)     # Azul sección
-    _COLOR_GRIS = (128, 128, 128)       # Gris pie de página
-    _FUENTE_BASE = "Helvetica"          # Fuente built-in de fpdf2
+    _COLOR_TITULO: tuple
+    _COLOR_SECCION: tuple
+    _COLOR_GRIS: tuple
+    _FUENTE_BASE: str
+    _ALIGN_TEXT: str
 
     def __init__(
         self,
         acta: Acta,
         metadata: ActaMetadata,
         db_manager: Optional[DBManager] = None,
+        template_name: str = "Corporativa Formal",
     ) -> None:
         """Inicializa el exportador PDF.
 
@@ -435,9 +488,10 @@ class PdfExporter(ExporterInterface):
             metadata: Información complementaria capturada en la UI.
             db_manager: Gestor de BD. Si es ``None`` se usa la instancia
                 Singleton de ``DBManager``.
+            template_name: Nombre del tipo de plantilla a aplicar ("Corporativa Formal", "Académica", "Minimalista").
         """
         try:
-            from fpdf import FPDF
+            from fpdf import FPDF # type: ignore
         except ImportError as exc:
             raise ImportError(
                 "Se requiere fpdf2 para PdfExporter. "
@@ -447,8 +501,54 @@ class PdfExporter(ExporterInterface):
         self.acta: Acta = acta
         self.metadata: ActaMetadata = metadata
         self.db_manager: DBManager = db_manager or DBManager()
-        self.pdf: FPDF = FPDF(orientation="P", unit="mm", format="Letter")
+        
+        # Clase interna para manejar el footer dinámico de fpdf2
+        class CustomFPDF(FPDF):
+            def __init__(self, exporter_ref, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.exporter = exporter_ref
+
+            def footer(self):
+                # Posición a 1.5 cm del final
+                self.set_y(-15)
+                self.set_font(self.exporter._FUENTE_BASE, "I", 8)
+                self.set_text_color(128, 128, 128)
+                
+                # Texto de info (izquierda/centro)
+                info = (f"ActaClara | Idioma: {self.exporter.acta.idioma} | "
+                        f"Diccionario v{self.exporter.acta.version_diccionario}")
+                
+                # Número de página a la derecha
+                page_num = f"Página {self.page_no()}"
+                
+                # Renderizar ambos en la misma línea
+                self.cell(0, 10, info, align="L")
+                self.cell(0, 10, page_num, align="R")
+
+        self.pdf: FPDF = CustomFPDF(self, orientation="P", unit="mm", format="Letter")
         self.pdf.set_auto_page_break(auto=True, margin=25)
+        
+        self.template_name = template_name
+        self._COLOR_GRIS = (128, 128, 128)
+        self._apply_template_config()
+
+    def _apply_template_config(self) -> None:
+        """Configura dinámicamente los estilos base según la plantilla escogida en PDF."""
+        if self.template_name == "Académica":
+            self._COLOR_TITULO = (0, 0, 0)
+            self._COLOR_SECCION = (0, 0, 0)
+            self._FUENTE_BASE = "Times"
+            self._ALIGN_TEXT = "J"
+        elif self.template_name == "Minimalista":
+            self._COLOR_TITULO = (33, 33, 33)
+            self._COLOR_SECCION = (100, 100, 100)
+            self._FUENTE_BASE = "Helvetica"
+            self._ALIGN_TEXT = "L"
+        else: # Corporativa Formal
+            self._COLOR_TITULO = (31, 73, 125)
+            self._COLOR_SECCION = (46, 116, 181)
+            self._FUENTE_BASE = "Helvetica"
+            self._ALIGN_TEXT = "J"
 
     # -- Métodos públicos ---------------------------------------------------
 
@@ -502,10 +602,13 @@ class PdfExporter(ExporterInterface):
         self.pdf.set_text_color(*self._COLOR_SECCION)
         self.pdf.cell(0, 8, title, new_x="LMARGIN", new_y="NEXT")
 
+        # Limpiar timestamps del contenido [00:00] antes de exportar
+        clean_content = re.sub(r'\[\d{1,2}:\d{2}\]\s*', '', content)
+
         # Contenido
         self.pdf.set_font(self._FUENTE_BASE, "", 11)
         self.pdf.set_text_color(0, 0, 0)
-        self.pdf.multi_cell(0, 6, content)
+        self.pdf.multi_cell(0, 6, clean_content, align=self._ALIGN_TEXT)
         self.pdf.ln(4)
 
     def save_and_record(self, acta_id: int, output_path: Path) -> Path:
@@ -525,8 +628,7 @@ class PdfExporter(ExporterInterface):
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Agregar pie de página antes de guardar
-        self._build_footer()
+        # El pie de página se genera automáticamente en cada página gracias al override de CustomFPDF
 
         try:
             self.pdf.output(str(output_path))
@@ -573,15 +675,8 @@ class PdfExporter(ExporterInterface):
         self.pdf.ln(6)
 
     def _build_footer(self) -> None:
-        """Agrega línea de pie con idioma y versión de diccionario."""
-        self.pdf.set_y(-20)
-        self.pdf.set_font(self._FUENTE_BASE, "I", 8)
-        self.pdf.set_text_color(*self._COLOR_GRIS)
-        footer_text = (
-            f"ActaClara | Idioma: {self.acta.idioma} | "
-            f"Diccionario v{self.acta.version_diccionario}"
-        )
-        self.pdf.cell(0, 6, footer_text, align="C")
+        """El footer del PDF se maneja ahora vía el método footer() de la clase CustomFPDF."""
+        pass
 
     def _build_all_sections(self, texto_normalizado: str) -> None:
         """Orquesta la creación de todas las secciones del acta en PDF.
@@ -668,6 +763,7 @@ def create_exporter(
     acta: Acta,
     metadata: ActaMetadata,
     db_manager: Optional[DBManager] = None,
+    template_name: str = "Corporativa Formal",
 ) -> ExporterInterface:
     """Crea el exportador adecuado según el formato solicitado.
 
@@ -676,6 +772,7 @@ def create_exporter(
         acta: Objeto ``Acta``.
         metadata: Metadatos complementarios.
         db_manager: Gestor de BD opcional.
+        template_name: Nombre de la plantilla elegida.
 
     Returns:
         Instancia de ``DocxExporter`` o ``PdfExporter``.
@@ -685,9 +782,9 @@ def create_exporter(
     """
     fmt_lower = fmt.strip().lower()
     if fmt_lower == "docx":
-        return DocxExporter(acta=acta, metadata=metadata, db_manager=db_manager)
+        return DocxExporter(acta=acta, metadata=metadata, db_manager=db_manager, template_name=template_name)
     if fmt_lower == "pdf":
-        return PdfExporter(acta=acta, metadata=metadata, db_manager=db_manager)
+        return PdfExporter(acta=acta, metadata=metadata, db_manager=db_manager, template_name=template_name)
     raise ValueError(
         f"Formato '{fmt}' no soportado. Use 'docx' o 'pdf'."
     )

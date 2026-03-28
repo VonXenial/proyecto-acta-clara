@@ -3,7 +3,8 @@ Tooltip que aparece al hacer hover sobre un widget
 """
 
 import tkinter as tk
-from src.ui.styles import COLORS, FONTS
+from src.ui.styles import COLORS, FONTS # type: ignore
+from typing import Optional, Any
 
 class Tooltip:
     """
@@ -15,7 +16,7 @@ class Tooltip:
         self.title = title
         self.body = body
         self.c = COLORS[theme]
-        self.tw = None
+        self.tw: Optional[tk.Toplevel] = None
         
         widget.bind("<Enter>", self.show)
         widget.bind("<Leave>", self.hide)
@@ -26,9 +27,9 @@ class Tooltip:
         y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
         
         self.tw = tk.Toplevel(self.widget)
-        self.tw.wm_overrideredirect(True)
-        self.tw.wm_geometry(f"+{x}+{y}")
-        self.tw.configure(bg=c["text_primary"])
+        self.tw.wm_overrideredirect(True) # type: ignore
+        self.tw.wm_geometry(f"+{x}+{y}") # type: ignore
+        self.tw.configure(bg=c["text_primary"]) # type: ignore
         
         frame = tk.Frame(self.tw, bg=c["text_primary"], padx=12, pady=8)
         frame.pack()
@@ -43,5 +44,5 @@ class Tooltip:
     
     def hide(self, event=None):
         if self.tw:
-            self.tw.destroy()
+            self.tw.destroy() # type: ignore
             self.tw = None

@@ -1,7 +1,7 @@
+import os
+
 # Configuración Global ActaClara
 VERSION = "0.4"
-
-import os
 
 # Rutas base
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -19,3 +19,6 @@ COMPUTE_TYPE = "int8"
 
 # Configuración Diccionario
 DICTIONARY_PATH = os.path.join(DATA_DIR, "diccionarios", "modismos_es_CL_v1.0.json")
+
+# Carpetas de datos generados
+RECORDINGS_DIR = os.path.join(DATA_DIR, "recordings")
