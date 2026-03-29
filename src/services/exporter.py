@@ -522,8 +522,8 @@ class PdfExporter(ExporterInterface):
                 page_num = f"Página {self.page_no()}"
                 
                 # Renderizar ambos en la misma línea
-                self.cell(0, 10, info, align="L")
-                self.cell(0, 10, page_num, align="R")
+                self.cell(0, 10, self.exporter._clean_for_pdf(info), align="L")
+                self.cell(0, 10, self.exporter._clean_for_pdf(page_num), align="R")
 
         self.pdf: FPDF = CustomFPDF(self, orientation="P", unit="mm", format="Letter")
         self.pdf.set_auto_page_break(auto=True, margin=25)
@@ -550,6 +550,24 @@ class PdfExporter(ExporterInterface):
             self._FUENTE_BASE = "Helvetica"
             self._ALIGN_TEXT = "J"
 
+    def _clean_for_pdf(self, text: str) -> str:
+        """Limpia caracteres Unicode que fpdf2 no soporta nativamente en sus fuentes core."""
+        if not text: return ""
+        replacements = {
+            '\u2014': '--', # em-dash
+            '\u2013': '-',  # en-dash
+            '\u201c': '"',  # left double quote
+            '\u201d': '"',  # right double quote
+            '\u2018': "'",  # left single quote
+            '\u2019': "'",  # right single quote
+            '\u2026': '...',# ellipsis
+            '\u2022': '-',  # bullets
+        }
+        for k, v in replacements.items():
+            text = str(text).replace(k, v)
+        # Reemplazar con '?' lo que quede fuera de latin-1
+        return text.encode('latin-1', 'replace').decode('latin-1')
+
     # -- Métodos públicos ---------------------------------------------------
 
     def apply_template(self) -> None:
@@ -564,14 +582,14 @@ class PdfExporter(ExporterInterface):
         # --- Título principal ---
         self.pdf.set_font(self._FUENTE_BASE, "B", 20)
         self.pdf.set_text_color(*self._COLOR_TITULO)
-        self.pdf.cell(0, 12, "ACTA DE REUNIÓN", new_x="LMARGIN", new_y="NEXT", align="C")
+        self.pdf.cell(0, 12, self._clean_for_pdf("ACTA DE REUNIÓN"), new_x="LMARGIN", new_y="NEXT", align="C")
 
         # --- Subtítulo: proyecto ---
         if self.metadata.proyecto:
             self.pdf.set_font(self._FUENTE_BASE, "I", 13)
             self.pdf.set_text_color(*self._COLOR_SECCION)
             self.pdf.cell(
-                0, 8, self.metadata.proyecto,
+                0, 8, self._clean_for_pdf(self.metadata.proyecto),
                 new_x="LMARGIN", new_y="NEXT", align="C",
             )
 
@@ -600,7 +618,7 @@ class PdfExporter(ExporterInterface):
         # Encabezado de sección
         self.pdf.set_font(self._FUENTE_BASE, "B", 13)
         self.pdf.set_text_color(*self._COLOR_SECCION)
-        self.pdf.cell(0, 8, title, new_x="LMARGIN", new_y="NEXT")
+        self.pdf.cell(0, 8, self._clean_for_pdf(title), new_x="LMARGIN", new_y="NEXT")
 
         # Limpiar timestamps del contenido [00:00] antes de exportar
         clean_content = re.sub(r'\[\d{1,2}:\d{2}\]\s*', '', content)
@@ -608,7 +626,7 @@ class PdfExporter(ExporterInterface):
         # Contenido
         self.pdf.set_font(self._FUENTE_BASE, "", 11)
         self.pdf.set_text_color(0, 0, 0)
-        self.pdf.multi_cell(0, 6, clean_content, align=self._ALIGN_TEXT)
+        self.pdf.multi_cell(0, 6, self._clean_for_pdf(clean_content), align=self._ALIGN_TEXT)
         self.pdf.ln(4)
 
     def save_and_record(self, acta_id: int, output_path: Path) -> Path:
@@ -661,16 +679,16 @@ class PdfExporter(ExporterInterface):
         self.pdf.set_text_color(0, 0, 0)
 
         # Fila Fecha
-        self.pdf.cell(col_w_label, 7, "Fecha:", border=1)
+        self.pdf.cell(col_w_label, 7, self._clean_for_pdf("Fecha:"), border=1)
         self.pdf.set_font(self._FUENTE_BASE, "", 11)
-        self.pdf.cell(col_w_value, 7, fecha_str, border=1, new_x="LMARGIN", new_y="NEXT")
+        self.pdf.cell(col_w_value, 7, self._clean_for_pdf(fecha_str), border=1, new_x="LMARGIN", new_y="NEXT")
 
         # Fila Objetivo
         self.pdf.set_font(self._FUENTE_BASE, "B", 11)
-        self.pdf.cell(col_w_label, 7, "Objetivo:", border=1)
+        self.pdf.cell(col_w_label, 7, self._clean_for_pdf("Objetivo:"), border=1)
         self.pdf.set_font(self._FUENTE_BASE, "", 11)
         objetivo = self.metadata.objetivo or "—"
-        self.pdf.cell(col_w_value, 7, objetivo, border=1, new_x="LMARGIN", new_y="NEXT")
+        self.pdf.cell(col_w_value, 7, self._clean_for_pdf(objetivo), border=1, new_x="LMARGIN", new_y="NEXT")
 
         self.pdf.ln(6)
 

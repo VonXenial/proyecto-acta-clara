@@ -53,11 +53,13 @@ class MainWindow(tk.Tk):
         self.geometry("1366x768")
         self.resizable(False, False)
         
-        # Icono de la aplicación (Resolución estricta para Windows 11)
+        # Icono de la aplicación (Resolución estricta para Windows 11 y soporte a PyInstaller)
         try:
             from pathlib import Path
             import sys
-            root = Path(__file__).resolve().parent.parent.parent
+            from src.config import APP_DIR
+            
+            root = Path(APP_DIR)
             
             if sys.platform == "win32":
                 # En Windows, usar iconbitmap con default= fuerza la actualización global
@@ -119,7 +121,8 @@ class MainWindow(tk.Tk):
     def _init_backend(self):
         self.db = DBManager()
         self.db.initialize_db()
-        self.audio_ctrl = AudioController()
+        from src.config import FFMPEG_PATH
+        self.audio_ctrl = AudioController(ffmpeg_path=FFMPEG_PATH)
         self.normalizer = Normalizer()
         self.stt = None 
 
@@ -348,13 +351,18 @@ class MainWindow(tk.Tk):
         level = lvl_map.get(lvl_str, logging.INFO)
         
         # Configuración básica para el archivo de logs
-        log_file = "actaclara.log"
+        from src.config import USER_DATA_DIR
+        import os
+        log_dir = os.path.join(USER_DATA_DIR, "logs")
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, "actaclara.log")
         logging.basicConfig(
             filename=log_file,
             level=level,
             format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
             encoding="utf-8"
         )
+
         # Limitar ruido de librerías externas
         logging.getLogger("faster_whisper").setLevel(logging.WARNING)
         logging.getLogger("ctranslate2").setLevel(logging.WARNING)
@@ -406,9 +414,8 @@ class MainWindow(tk.Tk):
                 logging.info(f"Iniciando respaldo automático (Frecuencia: {freq})")
                 try:
                     # Ruta de la DB
-                    db_path = "data/actaclara.db"
-                    base_dir = os.getcwd()
-                    backups_dir = os.path.join(base_dir, "backups")
+                    from src.config import DB_PATH, USER_DATA_DIR
+                    backups_dir = os.path.join(USER_DATA_DIR, "backups")
                     os.makedirs(backups_dir, exist_ok=True)
                     
                     ts = ahora.strftime("%d_%m_%Y__%H%M%S")
@@ -416,8 +423,8 @@ class MainWindow(tk.Tk):
                     backup_path = os.path.join(backups_dir, backup_name)
                     
                     import shutil
-                    db_dir = os.path.dirname(db_path)
-                    shutil.make_archive(backup_path, 'zip', db_dir, os.path.basename(db_path))
+                    db_dir = os.path.dirname(DB_PATH)
+                    shutil.make_archive(backup_path, 'zip', db_dir, os.path.basename(DB_PATH))
                     
                     # Actualizar fecha en config
                     self.cfg.set("last_backup_date", ahora.isoformat())

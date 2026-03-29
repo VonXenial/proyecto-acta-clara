@@ -4,6 +4,7 @@ import os
 import logging
 from typing import List, Tuple, Dict, Any
 from src.models.modismo import ModismoDetectado # type: ignore
+from src.config import DICTIONARY_PATH, USER_DATA_DIR
 
 # Configurar logger
 logger = logging.getLogger("Normalizer")
@@ -13,13 +14,13 @@ class Normalizer:
     Servicio para detectar y normalizar modismos chilenos en textos.
     """
 
-    def __init__(self, system_path: str = "data/diccionarios/modismos_es_CL_v1.0.json", 
-                 user_path: str = "data/diccionarios/user_modismos.json"):
+    def __init__(self, system_path: str = None, 
+                 user_path: str = None):
         """
         Carga los diccionarios de modismos (Sistema y Usuario).
         """
-        self.system_path = system_path
-        self.user_path = user_path
+        self.system_path = system_path if system_path else DICTIONARY_PATH
+        self.user_path = user_path if user_path else os.path.join(USER_DATA_DIR, "data", "diccionarios", "user_modismos.json")
         self.system_modismos: List[Dict[str, Any]] = []
         self.user_modismos: List[Dict[str, Any]] = []
         self.modismos_dict: List[Dict[str, Any]] = []

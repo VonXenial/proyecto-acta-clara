@@ -48,7 +48,8 @@ class Sidebar(tk.Frame):
         header.pack(fill="x")
         
         try:
-            source_path = os.path.join("assets", "logo", "logo_monochrome.png")
+            from src.config import APP_DIR  # type: ignore
+            source_path = os.path.join(APP_DIR, "assets", "logo", "logo_monochrome.png")
             if os.path.exists(source_path):
                 self.logo_img = tk.PhotoImage(file=source_path)
                 

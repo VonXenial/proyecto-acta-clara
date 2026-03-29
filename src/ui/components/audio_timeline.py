@@ -93,7 +93,19 @@ class AudioTimeline(tk.Frame):
         self.play_btn.configure(text="▶")
 
     def toggle_play(self):
-        if not self.audio_ctrl or self.duration == 0:
+        if not self.audio_ctrl:
+            return
+        
+        if self.duration == 0:
+            # Intentar recargar si hay un audio asignado pero duración 0 (error anterior)
+            from tkinter import messagebox
+            messagebox.showwarning(
+                "ActaClara - Reproducción",
+                "No se pudo cargar el audio para reproducción.\n\n"
+                "• Para archivos WAV: debería funcionar directamente.\n"
+                "• Para MP3/M4A: asegúrate de que FFMPEG esté disponible.\n\n"
+                "Intenta cargar el archivo nuevamente."
+            )
             return
         
         if self.is_playing:

@@ -11,6 +11,7 @@ import shutil
 import zipfile
 from pathlib import Path
 from datetime import datetime
+from src.config import USER_DATA_DIR
 from src.ui.styles import COLORS, FONTS  # type: ignore
 from src.utils.i18n import translate as _  # type: ignore
 from src.database.db_manager import DBManager # type: ignore
@@ -124,9 +125,10 @@ class ExportView(tk.Frame):
                     self._fecha_var.set(datetime.now().strftime("%d-%m-%Y %H:%M"))
                 
                 if self.config:
-                    # Carpeta por defecto en la raíz del proyecto llamada 'Actas'
-                    default_dir = self.config.get("export_dir", "Actas")
-                    if not default_dir: default_dir = "Actas"
+                    # Carpeta por defecto
+                    default_path = os.path.join(USER_DATA_DIR, "Actas")
+                    default_dir = self.config.get("export_dir", default_path)
+                    if not default_dir: default_dir = default_path
                     self._ruta_var.set(default_dir)
                     
                     fmt_conf = self.config.get("export_fmt", "Ambos (DOCX + PDF)").lower()
@@ -867,10 +869,10 @@ class ExportView(tk.Frame):
         formato_doc = self._fmt_doc.get().lower()
         formato_audio = self._fmt_audio.get().lower()
         
-        # Validar ruta base (usar 'Actas' si está vacío)
+        # Validar ruta base
         ruta_base_str = self._ruta_var.get().strip()
         if not ruta_base_str:
-            ruta_base_str = "Actas"
+            ruta_base_str = os.path.join(USER_DATA_DIR, "Actas")
             self._ruta_var.set(ruta_base_str)
             
         ruta_base = Path(ruta_base_str)
@@ -979,7 +981,8 @@ class ExportView(tk.Frame):
                 msj_respaldo = ""
                 if self._guardar_local.get():
                     try:
-                        local_repo = Path("backups")
+                        from src.config import USER_DATA_DIR
+                        local_repo = Path(USER_DATA_DIR) / "backups"
                         local_repo.mkdir(parents=True, exist_ok=True)
                         
                         # Evitar copia si el destino ya es la carpeta de backups

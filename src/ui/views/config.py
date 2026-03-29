@@ -17,14 +17,17 @@ from src.utils.i18n import translate as _  # type: ignore
 from src.utils.doc_templates.templates import get_template_names # type: ignore
 
 try:
-    from src.config import DB_PATH, DICTIONARY_PATH, BASE_DIR  # type: ignore
+    from src.config import DB_PATH, DICTIONARY_PATH, USER_DATA_DIR  # type: ignore
+    LOG_DIR = os.path.join(USER_DATA_DIR, "logs")
 except ImportError:
-    BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    DATA_DIR = os.path.join(BASE_DIR, "data")
-    DB_PATH = os.path.join(DATA_DIR, "actaclara.db")
-    DICTIONARY_PATH = os.path.join(DATA_DIR, "diccionarios", "modismos_es_CL_v1.0.json")
+    import sys
+    USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "Documents", "ActaClara")
+    DB_PATH = os.path.join(USER_DATA_DIR, "data", "actaclara.db")
+    DICTIONARY_PATH = os.path.join(USER_DATA_DIR, "data", "diccionarios", "modismos_es_CL_v1.0.json")
+    LOG_DIR = os.path.join(USER_DATA_DIR, "logs")
 
-LOG_PATH = os.path.join(BASE_DIR, "acta_clara.log")
+os.makedirs(LOG_DIR, exist_ok=True)
+LOG_PATH = os.path.join(LOG_DIR, "actaclara.log")
 
 
 # ── Definición de categorías ─────────────────────────────────
@@ -628,7 +631,8 @@ class ConfigView(tk.Frame):
             messagebox.showwarning("Sin Base de Datos", "Aún no existe una base de datos local para respaldar.")
             return
 
-        backups_dir = os.path.join(BASE_DIR, "backups")
+        from src.config import USER_DATA_DIR
+        backups_dir = os.path.join(USER_DATA_DIR, "backups")
         os.makedirs(backups_dir, exist_ok=True)
         
         timestamp = datetime.datetime.now().strftime("%d_%m_%Y__%H%M%S")
@@ -645,7 +649,8 @@ class ConfigView(tk.Frame):
 
     def _cmd_restore_backup(self):
         """Restaura una base de datos local desde un backup seleccionado."""
-        backups_dir = os.path.join(BASE_DIR, "backups")
+        from src.config import USER_DATA_DIR
+        backups_dir = os.path.join(USER_DATA_DIR, "backups")
         archivo = filedialog.askopenfilename(
             title="Seleccione archivo de respaldo a restaurar",
             initialdir=backups_dir,

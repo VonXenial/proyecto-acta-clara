@@ -5,11 +5,13 @@ from datetime import datetime
 from typing import Optional, List
 from src.models.acta import Acta # type: ignore
 from src.models.modismo import ModismoDetectado # type: ignore
+from src.config import USER_DATA_DIR, DB_PATH, APP_DIR
 
 # Configuración básica de logging
-os.makedirs("logs", exist_ok=True)
+log_dir = os.path.join(USER_DATA_DIR, "logs")
+os.makedirs(log_dir, exist_ok=True)
 logging.basicConfig(
-    filename="logs/database.log",
+    filename=os.path.join(log_dir, "database.log"),
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
@@ -21,7 +23,7 @@ class DBManager:
     Implementa el patrón Singleton para asegurar una única conexión.
     """
     _instance = None
-    _db_path = "data/actaclara.db"
+    _db_path = DB_PATH
 
     def __new__(cls):
         if cls._instance is None:
@@ -34,10 +36,13 @@ class DBManager:
         """Obtiene una conexión a la base de datos."""
         return sqlite3.connect(self._db_path)
 
-    def initialize_db(self, schema_path: str = "src/database/schema.sql"):
+    def initialize_db(self, schema_path: str = None):
         """
         Lee el archivo de esquema y crea las tablas necesarias.
         """
+        if schema_path is None:
+            schema_path = os.path.join(APP_DIR, "src", "database", "schema.sql")
+            
         try:
             if not os.path.exists(schema_path):
                 logger.error(f"Archivo de esquema no encontrado en: {schema_path}")

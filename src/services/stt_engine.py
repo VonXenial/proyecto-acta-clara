@@ -40,11 +40,42 @@ class STTEngine:
             logger.info(f"Cargando modelo Whisper '{model_size}' en {actual_device} ({actual_compute}) con {cpu_threads} hilos...")
             
             try:
-                self.model = WhisperModel(model_size, device=actual_device, compute_type=actual_compute, cpu_threads=cpu_threads)
+                import os, sys
+                from src.config import APP_DIR
+                
+                # Buscar el modelo primero junto al .exe (para la app instalada),
+                # luego en APP_DIR (_MEIPASS), y finalmente en el directorio de trabajo.
+                exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+                
+                candidate_paths = [
+                    os.path.join(exe_dir, "modelo_whisper"),      # junto al .exe instalado ← prioridad
+                    os.path.join(APP_DIR, "modelo_whisper"),       # dentro de _MEIPASS (dev/portable)
+                    os.path.join(os.getcwd(), "modelo_whisper"),   # directorio de trabajo
+                ]
+                
+                model_target = model_size  # fallback: descarga online
+                for candidate in candidate_paths:
+                    if os.path.exists(candidate) and os.listdir(candidate):
+                        model_target = candidate
+                        logger.info(f"Usando modelo offline en: {candidate}")
+                        break
+                else:
+                    logger.info("Modelo local no encontrado. Descargando modelo online...")
+                
+                self.model = WhisperModel(
+                    model_size_or_path=model_target, 
+                    device=actual_device, 
+                    compute_type=actual_compute, 
+                    cpu_threads=cpu_threads
+                )
             except Exception as e:
                 if actual_device == "cuda":
                     logger.warning(f"Error al inicializar GPU ({e}). Intentando fallback a CPU...")
-                    self.model = WhisperModel(model_size, device="cpu", compute_type="int8")
+                    self.model = WhisperModel(
+                        model_size_or_path=model_target, 
+                        device="cpu", 
+                        compute_type="int8"
+                    )
                 else:
                     raise
             

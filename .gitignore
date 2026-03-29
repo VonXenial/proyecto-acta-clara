@@ -1,47 +1,34 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
+# --- ActaClara GitIgnore ---
+
+# Entornos virtuales
 venv/
+.venv/
 env/
-*.egg-info/
 
-# Entorno
-.env
-.venv
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 
-# IDEs
+# PyInstaller / Build
+build/
+dist/
+*.spec
+
+# Inno Setup Output
+Output/
+
+# Modelos de IA pesados (No subir archivos de gigas al historial)
+modelo_whisper/
+
+# Datos locales de usuario/desarrollo
+*.db
+*.log
+recordings/
+
+# VS Code / IDE
 .vscode/
 .idea/
-*.swp
-*.swo
-
-# Logs
-logs/*.log
-*.log
-
-# Base de datos
-data/*.db
-data/*.db-journal
-
-# Archivos temporales
-*.tmp
-*.temp
-
-# Sistema
 .DS_Store
-Thumbs.db
-
-# Audios grandes (opcional)
-data/audios_prueba/*.wav
-data/audios_prueba/*.mp3
-
-# Binarios locales
-bin/
-
-# Reportes de cobertura
-htmlcov/
-.tox/
-
+*.swp
